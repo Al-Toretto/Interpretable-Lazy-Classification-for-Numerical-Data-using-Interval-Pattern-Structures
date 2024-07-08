@@ -152,34 +152,6 @@ class IPSKNNClassifier:
             y_pred[index] = self._predict_one_sample(sample)
         return y_pred
 
-    def _find_counterfactual_explanation_one_sample(
-        self,
-        standardized_sample: pd.Series,
-        desired_class: Any,
-        on_destandardized_features: bool = True,
-    ) -> pd.DataFrame:
-        X = self.org_X_train if on_destandardized_features else self.X_train
-        sample = (
-            pd.Series(
-                self.dataset_preprocessor.standardization_scaler.inverse_transform(
-                    [standardized_sample]
-                )[0],
-                index=X.columns,
-            )
-            if on_destandardized_features
-            else standardized_sample
-        )
-        l1_distances = np.sum(
-            np.abs(np.subtract(X[self.y_train == desired_class], sample)),
-            axis="columns",
-        ).sort_values()
-        min_dist = l1_distances.iloc[0]
-        indices_of_counterfactuals = l1_distances[l1_distances == min_dist].index
-        counterfactuals_df = X.loc[indices_of_counterfactuals]
-        counterfactual_explanations = counterfactuals_df.subtract(sample, axis=1)
-        counterfactual_explanations["l1_dist"] = min_dist
-        return counterfactual_explanations
-
     def _find_reduced_reason_for_classification(
         self, reason_for_classification: Dict[Any, Tuple[float, float]]
     ) -> Tuple[Dict[Any, Tuple[float, float]], int]:
@@ -197,14 +169,12 @@ class IPSKNNClassifier:
     def _predict_with_explanation_one_sample(
         self,
         sample: pd.Series,
-        include_counter_reason_for_classification: bool = False,
     ) -> Tuple[
         Any,
         Dict[Any, Tuple[float, float]],
         Dict[Any, Tuple[float, float]] | None,
     ]:
         reason_for_classification = None
-        counter_reason_for_classification = None
 
         votes, distances, mask = self._find_votes_for_one_sample(sample)
 
@@ -212,10 +182,8 @@ class IPSKNNClassifier:
             votes.items(), key=lambda item: item[1], reverse=True
         )
         largest_label = sorted_votes_list[0][0]
-        second_largest_label = None
         second_largest_score = 0
         if len(sorted_votes_list) > 1:
-            second_largest_label = sorted_votes_list[1][0]
             second_largest_score = sorted_votes_list[1][1]
 
         mask_voters_with_largest_label = mask & (self.y_train == largest_label)
@@ -250,27 +218,9 @@ class IPSKNNClassifier:
             for col in self.X_train.columns
         }
 
-        if include_counter_reason_for_classification:
-            if second_largest_label is not None:
-                mask_voters_with_second_largest_label = mask & (
-                    self.y_train == second_largest_label
-                )
-
-                counter_explanation_samples = self.X_train[
-                    mask_voters_with_second_largest_label
-                ]
-                counter_reason_for_classification = {
-                    col: (
-                        min(counter_explanation_samples[col].min(), sample.loc[col]),
-                        max(counter_explanation_samples[col].max(), sample.loc[col]),
-                    )
-                    for col in self.X_train.columns
-                }
-
         return (
             largest_label,
             reason_for_classification,
-            counter_reason_for_classification,
         )
 
     def _predict_with_explanation(
@@ -278,15 +228,10 @@ class IPSKNNClassifier:
         X_test: pd.DataFrame,
         include_reduced_reason_for_classification: bool = False,
         include_feature_importance: bool = False,
-        include_counterfactual: bool = False,
-        use_destandardized_features_for_counterfactuals: bool = True,
-        include_counter_reason_for_classification: bool = False,
     ) -> Tuple[
         pd.Series,
         pd.DataFrame,
         Dict[Any, int],
-        pd.DataFrame,
-        pd.DataFrame,
         pd.DataFrame,
         pd.DataFrame,
     ]:
@@ -295,23 +240,18 @@ class IPSKNNClassifier:
         reason_for_classification_dict = {}
         reduced_reason_for_classification_dict = {}
         feature_importance_scores_dict = {}
-        counter_reason_for_classification_dict = {}
-        counterfactual_explanations_dict = {}
+
         classifier_size_dict = {}
 
         reduced_reason_for_classification_df = None
         feature_importance_scores_df = None
-        counterfactual_explanations_df = None
-        counter_reason_for_classification_df = None
 
         for index, sample in X_test.iterrows():
             (
                 predicted_label,
                 reason_for_classification,
-                counter_reason_for_classification,
             ) = self._predict_with_explanation_one_sample(
                 sample,
-                include_counter_reason_for_classification,
             )
             y_pred[index] = predicted_label
 
@@ -337,21 +277,6 @@ class IPSKNNClassifier:
                     )
 
                 feature_importance_scores_dict[index] = feature_importance_scores
-            if include_counter_reason_for_classification:
-                counter_reason_for_classification_dict[index] = (
-                    counter_reason_for_classification or pd.Series(dtype="float64")
-                )
-            if include_counterfactual:
-                desired_label = (
-                    set(self.y_train.unique()).difference({predicted_label}).pop()
-                )
-                counterfactual_explanations_dict[index] = (
-                    self._find_counterfactual_explanation_one_sample(
-                        sample,
-                        desired_label,
-                        use_destandardized_features_for_counterfactuals,
-                    )
-                )
 
         reason_for_classification_df = pd.DataFrame.from_dict(
             reason_for_classification_dict, orient="index"
@@ -364,62 +289,39 @@ class IPSKNNClassifier:
             feature_importance_scores_df = pd.DataFrame.from_dict(
                 feature_importance_scores_dict, orient="index"
             )
-        if include_counter_reason_for_classification:
-            counter_reason_for_classification_df = pd.DataFrame.from_dict(
-                counter_reason_for_classification_dict, orient="index"
-            )
-        if include_counterfactual:
-            counterfactual_explanations_dict = {
-                index: df for index, df in counterfactual_explanations_dict.items()
-            }
-            counterfactual_explanations_df = pd.concat(
-                counterfactual_explanations_dict, names=["index", "counterfactual"]
-            )
+
         return (
             y_pred,
             reason_for_classification_df,
             classifier_size_dict,
             reduced_reason_for_classification_df,
             feature_importance_scores_df,
-            counterfactual_explanations_df,
-            counter_reason_for_classification_df,
         )
 
     def predict_with_explanation(
         self,
         X_test,
+        dataset_preprocessor : DatasetPreprocessor,
         include_reduced_reason_for_classification: bool = False,
-        include_feature_importance: bool = False,
-        include_counterfactual: bool = False,
-        use_destandardized_features_for_counterfactuals: bool = True,
-        include_counter_reason_for_classification: bool = False,
+        include_feature_importance: bool = False,    
     ) -> Tuple[
         pd.Series,
         pd.DataFrame,
         Dict[Any, int],
         pd.DataFrame,
         pd.DataFrame,
-        pd.DataFrame,
-        pd.DataFrame,
     ]:
-        if self.org_X_train is None and use_destandardized_features_for_counterfactuals:
-            raise AttributeError("Call destandardize_features first!")
-
+        self.dataset_preprocessor = dataset_preprocessor
         (
             y_pred,
             reason_for_classification_df,
             classifier_size_dict,
             reduced_reason_for_classification_df,
             feature_importance_scores_df,
-            counterfactual_explanations_df,
-            counter_reason_for_classification_df,
         ) = self._predict_with_explanation(
             X_test,
             include_reduced_reason_for_classification,
             include_feature_importance,
-            include_counterfactual,
-            use_destandardized_features_for_counterfactuals,
-            include_counter_reason_for_classification,
         )
 
         reason_for_classification_df = (
@@ -433,20 +335,6 @@ class IPSKNNClassifier:
                     reduced_reason_for_classification_df
                 )
             )
-        if include_counter_reason_for_classification:
-            counter_reason_for_classification_df = (
-                self.dataset_preprocessor.destandardize_df_of_ranges(
-                    counter_reason_for_classification_df
-                )
-            )
-        if include_counterfactual and (
-            not use_destandardized_features_for_counterfactuals
-        ):
-            counterfactual_explanations_df.iloc[:, :-1] = (
-                self.dataset_preprocessor.destandardize_df(
-                    counterfactual_explanations_df.iloc[:, :-1]
-                )
-            )
 
         return (
             y_pred,
@@ -454,6 +342,4 @@ class IPSKNNClassifier:
             classifier_size_dict,
             reduced_reason_for_classification_df,
             feature_importance_scores_df,
-            counterfactual_explanations_df,
-            counter_reason_for_classification_df,
         )

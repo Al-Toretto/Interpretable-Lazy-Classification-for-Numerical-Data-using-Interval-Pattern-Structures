@@ -1,20 +1,18 @@
 from src.dataset import Dataset, known_datasets
 from src.dataset_preprocessor import DatasetPreprocessor
 from src.ips_knn_classifier import IPSKNNClassifier
-from src.eager_ips_knn_classifier import EagerIPSKNNClassifier
 from config.optimal_hyperparameters import optimal_params
 from src.utils import custom_print
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
+from sklearn.preprocessing import LabelEncoder
 import xgboost as xgb
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import SVC
-from sklearn.metrics import make_scorer, f1_score, accuracy_score
-import time
-import numpy as np
+from sklearn.metrics import  f1_score, accuracy_score
 from typing import Any
 import pandas as pd
 
@@ -28,11 +26,12 @@ def analyze_performance(
     dataset_positive_label: Any,
     filename: str,
 ):
+    label_count = len(set(y_train.unique()).union(set(y_test.unique())))
     classifier.fit(X_train, y_train)
     y_pred = classifier.predict(X_test)
     custom_print("\n\n", filename)
     custom_print(
-        f"X_test F1 Score: {f1_score(y_test, y_pred, pos_label=dataset_positive_label)}",
+        f"X_test F1 Score: {f1_score(y_test, y_pred, pos_label=dataset_positive_label) if label_count == 2 else f1_score(y_test, y_pred, average='macro')}",
         filename,
     )
     custom_print(f"X_test accuracy: {accuracy_score(y_test, y_pred)}", filename)
@@ -75,8 +74,17 @@ def main():
             filename,
         )
         pos_label = dataset.dataset_positive_label
-        transfered_y_train = dataset.y_train.apply(lambda x: 1 if x == pos_label else 0)
-        transfered_y_test = dataset.y_test.apply(lambda x: 1 if x == pos_label else 0)
+        
+        if len(dataset.y.unique()) == 2:
+            transfered_y_train = dataset.y_train.apply(lambda x: 1 if x == pos_label else 0)
+            transfered_y_test = dataset.y_test.apply(lambda x: 1 if x == pos_label else 0)
+            pos_label = 1
+        else:
+            label_encoder = LabelEncoder()
+            transfered_y_train = pd.Series(label_encoder.fit_transform(dataset.y_train))
+            transfered_y_test = pd.Series(label_encoder.fit_transform(dataset.y_test))
+
+        
         classifier = xgb.XGBClassifier(
             random_state=1998, n_jobs=1, **optimal_params["xgboost"][name]
         )
@@ -98,71 +106,6 @@ def main():
             filename,
         )
         classifier = IPSKNNClassifier(**optimal_params["ips_knn"][name])
-        analyze_performance(
-            classifier,
-            dataset.X_train,
-            dataset.y_train,
-            dataset.X_test,
-            dataset.y_test,
-            dataset.dataset_positive_label,
-            filename,
-        )
-
-        # E-IPS-KNN T: ******************************************************************
-        custom_print(
-            "E-IPS-KNN T: ******************************************************************",
-            filename,
-        )
-        classifier = EagerIPSKNNClassifier(**optimal_params["e_ips_knn_t"][name])
-        analyze_performance(
-            classifier,
-            dataset.X_train,
-            dataset.y_train,
-            dataset.X_test,
-            dataset.y_test,
-            dataset.dataset_positive_label,
-            filename,
-        )
-
-        # # E-IPS-KNN T&F: ****************************************************************
-        custom_print(
-            "E-IPS-KNN T&F: ****************************************************************",
-            filename,
-        )
-        classifier = EagerIPSKNNClassifier(**optimal_params["e_ips_knn_tf"][name])
-        analyze_performance(
-            classifier,
-            dataset.X_train,
-            dataset.y_train,
-            dataset.X_test,
-            dataset.y_test,
-            dataset.dataset_positive_label,
-            filename,
-        )
-        custom_print("\n\n", filename)
-
-        # # E-IPS-KNN T with expansion: ***************************************************
-        custom_print(
-            "E-IPS-KNN T with expansion: ***************************************************",
-            filename,
-        )
-        classifier = EagerIPSKNNClassifier(**optimal_params["e_ips_knn_t_e"][name])
-        analyze_performance(
-            classifier,
-            dataset.X_train,
-            dataset.y_train,
-            dataset.X_test,
-            dataset.y_test,
-            dataset.dataset_positive_label,
-            filename,
-        )
-
-        # E-IPS-KNN T&F with expanstion: ************************************************
-        custom_print(
-            "E-IPS-KNN T&F with expanstion: ************************************************",
-            filename,
-        )
-        classifier = EagerIPSKNNClassifier(**optimal_params["e_ips_knn_tf_e"][name])
         analyze_performance(
             classifier,
             dataset.X_train,

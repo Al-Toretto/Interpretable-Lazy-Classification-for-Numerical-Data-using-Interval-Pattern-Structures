@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 
 
 project_root = os.environ.get("PROJECT_ROOT")
@@ -14,7 +15,10 @@ known_datasets = [
     "sonar",
     "parkinsons",
     "spam",
-    "magic",
+    "glass",
+    "ionosphere",
+    "page_blocks",
+    "waveform",
 ]
 
 paths_to_datasets = {
@@ -25,6 +29,10 @@ paths_to_datasets = {
     "parkinsons": os.path.join(project_root, "datasets", "parkinsons.data"),
     "spam": os.path.join(project_root, "datasets", "spambase.csv"),
     "magic": os.path.join(project_root, "datasets", "magic.csv"),
+    "glass": os.path.join(project_root, "datasets", "glass.data"),
+    "ionosphere": os.path.join(project_root, "datasets", "ionosphere.data"),
+    "page_blocks": os.path.join(project_root, "datasets", "page-blocks.data"),
+    "waveform": os.path.join(project_root, "datasets", "waveform.data"),
 }
 
 dataset_positive_labels = {
@@ -35,6 +43,10 @@ dataset_positive_labels = {
     "parkinsons": 1,
     "spam": 1,
     "magic": "g",
+    "glass": 1,
+    "ionosphere": 'g',
+    "page_blocks": 1,
+    "waveform": 1,
 }
 dataset_class_column_names = {
     "wine": "quality",
@@ -44,6 +56,10 @@ dataset_class_column_names = {
     "parkinsons": "status",
     "spam": "class",
     "magic": "class",
+    "glass": "type",
+    "ionosphere": "class",
+    "page_blocks": "class",
+    "waveform": "class",
 }
 
 
@@ -59,13 +75,13 @@ class Dataset:
         self.dataset_path = None
         self.class_column_name = None
         self.dataset_positive_label = None
-        self.df = None
-        self.X = None
-        self.y = None
-        self.X_train = None
-        self.y_train = None
-        self.X_test = None
-        self.y_test = None
+        self.df : pd.DataFrame = None
+        self.X : pd.DataFrame = None
+        self.y : pd.Series = None
+        self.X_train : pd.DataFrame = None
+        self.y_train : pd.Series = None
+        self.X_test : pd.DataFrame = None
+        self.y_test : pd.Series = None
         if dataset_name is not None and dataset_name in known_datasets:
             self.dataset_name = dataset_name
             self.dataset_path = paths_to_datasets[dataset_name]

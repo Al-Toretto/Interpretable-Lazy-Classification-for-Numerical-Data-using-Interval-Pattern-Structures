@@ -103,6 +103,18 @@ class DatasetPreprocessor:
     def _preprocess_magic(self):
         pass
 
+    def _preprocess_glass(self):
+        self.dataset.df.drop(["id"], axis=1, inplace=True)
+
+    def _preprocess_ionosphere(self):
+        pass
+    
+    def _preprocess_page_blocks(self):
+        pass
+    
+    def _preprocess_waveform(self):
+        pass
+
     def __init__(self, dataset:Dataset):
         self.standardization_scaler = None
         self.dataset = dataset
@@ -114,6 +126,10 @@ class DatasetPreprocessor:
             "parkinsons": self._preprocess_parkinsons,
             "spam": self._preprocess_spam,
             "magic": self._preprocess_magic,
+            "glass": self._preprocess_glass,
+            "ionosphere": self._preprocess_ionosphere,
+            "page_blocks": self._preprocess_page_blocks,
+            "waveform": self._preprocess_waveform,
         }
 
     def _load_data(self):

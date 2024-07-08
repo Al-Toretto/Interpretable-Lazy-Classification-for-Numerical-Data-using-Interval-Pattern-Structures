@@ -1,7 +1,6 @@
-from src.dataset import Dataset, known_datasets
+from src.dataset import Dataset#, known_datasets
 from src.dataset_preprocessor import DatasetPreprocessor
 from src.ips_knn_classifier import IPSKNNClassifier
-from src.eager_ips_knn_classifier import EagerIPSKNNClassifier
 from src.hyperparameter_tuner import HyperparameterTuner
 from sklearn.metrics import accuracy_score, f1_score, make_scorer
 from src.utils import custom_print
@@ -14,7 +13,15 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import SVC
+from sklearn.preprocessing import LabelEncoder
 
+
+known_datasets = [
+    "glass",
+    "ionosphere",
+    "page_blocks",
+    "waveform",
+]
 
 
 param_grid_dict = {
@@ -70,7 +77,10 @@ def main():
         custom_print("------------------------------------------------------------------------------", filename)
         dataset = Dataset(dataset_name=name)
         preprocessor = DatasetPreprocessor(dataset).preprocess()
-        scorer = make_scorer(f1_score, pos_label=dataset.dataset_positive_label)
+        if len(dataset.y.unique()) > 2:
+            scorer = make_scorer(f1_score, average='macro')
+        else:
+            scorer = make_scorer(f1_score, pos_label=dataset.dataset_positive_label)
 
         # # Naive Bayes: ******************************************************************
         custom_print('Naive Bayes: ******************************************************************', filename)
@@ -82,7 +92,7 @@ def main():
         best_classifier = tuner.best_estimator_
         y_pred = best_classifier.predict(dataset.X_test)
         custom_print(
-            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
+            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, average='macro') if len(dataset.y.unique()) > 2 else f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
         , filename)
         custom_print(f"X_test accuracy: {accuracy_score(dataset.y_test, y_pred)}", filename)
         custom_print("\n\n", filename)
@@ -91,9 +101,17 @@ def main():
         # XGBoost: **********************************************************************
         custom_print('XGBoost: **********************************************************************', filename)
         pos_label = dataset.dataset_positive_label
-        transfered_y_train = dataset.y_train.apply(lambda x: 1 if x == pos_label else 0)
-        transfered_y_test = dataset.y_test.apply(lambda x: 1 if x == pos_label else 0)
-        xg_scorer = make_scorer(f1_score, pos_label=1)
+        
+        if len(dataset.y.unique()) == 2:
+            transfered_y_train = dataset.y_train.apply(lambda x: 1 if x == pos_label else 0)
+            transfered_y_test = dataset.y_test.apply(lambda x: 1 if x == pos_label else 0)
+            xg_scorer = make_scorer(f1_score, pos_label=1)
+            pos_label = 1
+        else:
+            label_encoder = LabelEncoder()
+            transfered_y_train = label_encoder.fit_transform(dataset.y_train)
+            transfered_y_test = label_encoder.fit_transform(dataset.y_test)
+            xg_scorer = make_scorer(f1_score, average='macro')
         
         classifier = xgb.XGBClassifier(random_state=1998)
         tuner = HyperparameterTuner(estimator=classifier, param_grid=param_grid_dict['xgboost'])
@@ -104,7 +122,7 @@ def main():
         best_classifier = tuner.best_estimator_
         y_pred = best_classifier.predict(dataset.X_test)
         custom_print(
-            f"X_test F1 Score: {f1_score(transfered_y_test, y_pred, pos_label= 1)}"
+            f"X_test F1 Score: {f1_score(transfered_y_test, y_pred, average='macro') if len(dataset.y.unique()) > 2 else f1_score(transfered_y_test, y_pred, pos_label=pos_label)}"
         , filename)
         custom_print(f"X_test accuracy: {accuracy_score(transfered_y_test, y_pred)}", filename)
         custom_print("\n\n", filename)
@@ -122,103 +140,11 @@ def main():
         best_classifier = tuner.best_estimator_
         y_pred = best_classifier.predict(dataset.X_test)
         custom_print(
-            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
+            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, average='macro') if len(dataset.y.unique()) > 2 else f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
         , filename)
         custom_print(f"X_test accuracy: {accuracy_score(dataset.y_test, y_pred)}", filename)
         custom_print("\n\n", filename)
-
-        # E-IPS-KNN T: ******************************************************************
-        custom_print('E-IPS-KNN T: ******************************************************************', filename)
-        classifier = EagerIPSKNNClassifier(dataset_positive_label=dataset.dataset_positive_label, use_counter_explanations=False, use_hyperrectangle_expanstion_by_information_gain=False)
-        tuner = HyperparameterTuner(
-            classifier,
-            {
-                "k": [i for i in range(1, 31)],
-                "dataset_positive_label": [dataset.dataset_positive_label],
-                "use_hyperrectangle_expanstion_by_information_gain": [False],
-                "use_counter_explanations" : [False],
-            },
-        )
-        tuner.perform_stratified_grid_search(dataset.X_train, dataset.y_train, scoring=scorer, verbose=0, n_jobs=-1)
-        custom_print(f"Tuner's best parameters: {tuner.best_params_}", filename)
-        custom_print(f"Tuner's best F1 score: {tuner.best_score_}", filename)
-        best_classifier = tuner.best_estimator_
-        y_pred = best_classifier.predict(dataset.X_test)
-        custom_print(
-            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
-        , filename)
-        custom_print(f"X_test accuracy: {accuracy_score(dataset.y_test, y_pred)}", filename)
-        custom_print("\n\n", filename)
-        
-        # E-IPS-KNN T&F: ****************************************************************
-        custom_print('E-IPS-KNN T&F: ****************************************************************', filename)
-        classifier = EagerIPSKNNClassifier(dataset_positive_label=dataset.dataset_positive_label, use_counter_explanations=True, use_hyperrectangle_expanstion_by_information_gain=False)
-        tuner = HyperparameterTuner(
-            classifier,
-            {
-                "k": [i for i in range(1, 31)],
-                "dataset_positive_label": [dataset.dataset_positive_label],
-                "use_hyperrectangle_expanstion_by_information_gain": [False],
-                "use_counter_explanations" : [True],
-            },
-        )
-        tuner.perform_stratified_grid_search(dataset.X_train, dataset.y_train, scoring=scorer, verbose=0, n_jobs=-1)
-        custom_print(f"Tuner's best parameters: {tuner.best_params_}", filename)
-        custom_print(f"Tuner's best F1 score: {tuner.best_score_}", filename)
-        best_classifier = tuner.best_estimator_
-        y_pred = best_classifier.predict(dataset.X_test)
-        custom_print(
-            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
-        , filename)
-        custom_print(f"X_test accuracy: {accuracy_score(dataset.y_test, y_pred)}", filename)
-        custom_print("\n\n", filename)
-        # E-IPS-KNN T with expansion: ***************************************************
-        custom_print('E-IPS-KNN T with expansion: ***************************************************', filename)
-        classifier = EagerIPSKNNClassifier(dataset_positive_label=dataset.dataset_positive_label, use_counter_explanations=False, use_hyperrectangle_expanstion_by_information_gain=True)
-        tuner = HyperparameterTuner(
-            classifier,
-            {
-                "k": [i for i in range(1, 31)],
-                "dataset_positive_label": [dataset.dataset_positive_label],
-                "use_hyperrectangle_expanstion_by_information_gain": [True],
-                "use_counter_explanations" : [False],
-            },
-        )
-        tuner.perform_stratified_grid_search(dataset.X_train, dataset.y_train, scoring=scorer, verbose=0, n_jobs=-1)
-        custom_print(f"Tuner's best parameters: {tuner.best_params_}", filename)
-        custom_print(f"Tuner's best F1 score: {tuner.best_score_}", filename)
-        best_classifier = tuner.best_estimator_
-        y_pred = best_classifier.predict(dataset.X_test)
-        custom_print(
-            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
-        , filename)
-        custom_print(f"X_test accuracy: {accuracy_score(dataset.y_test, y_pred)}", filename)
-        custom_print("\n\n", filename)
-
-        # E-IPS-KNN T&F with expanstion: ************************************************
-        custom_print('E-IPS-KNN T&F with expanstion: ************************************************', filename)
-        classifier = EagerIPSKNNClassifier(dataset_positive_label=dataset.dataset_positive_label, use_counter_explanations=True, use_hyperrectangle_expanstion_by_information_gain=True)
-        tuner = HyperparameterTuner(
-            classifier,
-            {
-                "k": [i for i in range(1, 31)],
-                "dataset_positive_label": [dataset.dataset_positive_label],
-                "use_hyperrectangle_expanstion_by_information_gain": [True],
-                "use_counter_explanations" : [True],
-            },
-        )
-        tuner.perform_stratified_grid_search(dataset.X_train, dataset.y_train, scoring=scorer, verbose=0, n_jobs=-1)
-        custom_print(f"Tuner's best parameters: {tuner.best_params_}", filename)
-        custom_print(f"Tuner's best F1 score: {tuner.best_score_}", filename)
-        best_classifier = tuner.best_estimator_
-        y_pred = best_classifier.predict(dataset.X_test)
-        custom_print(
-            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
-        , filename)
-        custom_print(f"X_test accuracy: {accuracy_score(dataset.y_test, y_pred)}", filename)
-        custom_print("\n\n", filename)
-       
-       
+      
         # KNN: **************************************************************************
         custom_print('KNN: **************************************************************************', filename)
         classifier = KNeighborsClassifier()
@@ -229,7 +155,7 @@ def main():
         best_classifier = tuner.best_estimator_
         y_pred = best_classifier.predict(dataset.X_test)
         custom_print(
-            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
+            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, average='macro') if len(dataset.y.unique()) > 2 else f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
         , filename)
         custom_print(f"X_test accuracy: {accuracy_score(dataset.y_test, y_pred)}", filename)
         custom_print("\n\n", filename)
@@ -244,7 +170,7 @@ def main():
         best_classifier = tuner.best_estimator_
         y_pred = best_classifier.predict(dataset.X_test)
         custom_print(
-            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
+            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, average='macro') if len(dataset.y.unique()) > 2 else f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
         , filename)
         custom_print(f"X_test accuracy: {accuracy_score(dataset.y_test, y_pred)}", filename)
         custom_print("\n\n", filename)
@@ -259,7 +185,7 @@ def main():
         best_classifier = tuner.best_estimator_
         y_pred = best_classifier.predict(dataset.X_test)
         custom_print(
-            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
+            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, average='macro') if len(dataset.y.unique()) > 2 else f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
         , filename)
         custom_print(f"X_test accuracy: {accuracy_score(dataset.y_test, y_pred)}", filename)
         custom_print("\n\n", filename)
@@ -274,7 +200,7 @@ def main():
         best_classifier = tuner.best_estimator_
         y_pred = best_classifier.predict(dataset.X_test)
         custom_print(
-            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
+            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, average='macro') if len(dataset.y.unique()) > 2 else f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
         , filename)
         custom_print(f"X_test accuracy: {accuracy_score(dataset.y_test, y_pred)}", filename)
         custom_print("\n\n", filename)
@@ -289,7 +215,7 @@ def main():
         best_classifier = tuner.best_estimator_
         y_pred = best_classifier.predict(dataset.X_test)
         custom_print(
-            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
+            f"X_test F1 Score: {f1_score(dataset.y_test, y_pred, average='macro') if len(dataset.y.unique()) > 2 else f1_score(dataset.y_test, y_pred, pos_label=dataset.dataset_positive_label)}"
         , filename)
         custom_print(f"X_test accuracy: {accuracy_score(dataset.y_test, y_pred)}", filename)
         custom_print("\n\n", filename)
