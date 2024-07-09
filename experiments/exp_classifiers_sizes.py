@@ -1,7 +1,6 @@
 from src.dataset import Dataset, known_datasets
 from src.dataset_preprocessor import DatasetPreprocessor
 from src.ips_knn_classifier import IPSKNNClassifier
-from src.eager_ips_knn_classifier import EagerIPSKNNClassifier
 from src.utils import custom_print
 from config.optimal_hyperparameters import optimal_params
 
@@ -41,34 +40,12 @@ def main():
         classifier = IPSKNNClassifier(**optimal_params['ips_knn'][name])
         classifier.fit(dataset.X_train, dataset.y_train)
         classifier.destandardize_features(preprocessor)
-        _, _, size_dict, _, _, _, _ = classifier._predict_with_explanation(dataset.X_test, True, False, False, False, False)
+        _, _, size_dict, _, _ = classifier._predict_with_explanation(dataset.X_test, True, False)
         size_list = list(size_dict.values())
         custom_print(size_list, filename)
         custom_print(f"max size = {np.max(size_list)}", filename)
         custom_print(f"avg size = {np.average(size_list)}", filename)
         custom_print("\n\n", filename)
-        # E-IPS-KNN T: ******************************************************************
-        custom_print('E-IPS-KNN T: ******************************************************************', filename)
-        classifier = EagerIPSKNNClassifier(**optimal_params['e_ips_knn_t'][name])
-        classifier.fit(dataset.X_train, dataset.y_train)
-        _, _, size_dict, _, _, _ = classifier._predict_with_explanation(dataset.X_test, True, False, False, False)
-        size_list = list(size_dict.values())
-        custom_print(size_list, filename)
-        custom_print(f"max size = {np.max(size_list)}", filename)
-        custom_print(f"avg size = {np.average(size_list)}", filename)
-        custom_print("\n\n", filename)
-
-        # E-IPS-KNN T&F: ****************************************************************
-        custom_print('E-IPS-KNN T&F: ****************************************************************', filename)
-        classifier = EagerIPSKNNClassifier(**optimal_params['e_ips_knn_tf'][name])
-        classifier.fit(dataset.X_train, dataset.y_train)
-        _, _, size_dict, _, _, _ = classifier._predict_with_explanation(dataset.X_test, True, False, False, False)
-        size_list = list(size_dict.values())
-        custom_print(size_list, filename)
-        custom_print(f"max size = {np.max(size_list)}", filename)
-        custom_print(f"avg size = {np.average(size_list)}", filename)
-        custom_print("\n\n", filename)
-
         # KNN: **************************************************************************
         custom_print('KNN: **************************************************************************', filename)
         custom_print(f"size: {n_features * optimal_params['knn'][name]['n_neighbors']}", filename)
