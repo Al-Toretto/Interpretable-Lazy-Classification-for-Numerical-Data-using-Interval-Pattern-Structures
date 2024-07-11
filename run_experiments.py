@@ -31,8 +31,6 @@ if __name__ == '__main__':
                         2- param_search: hyperparameter search of all the tested models.\n
                         3- size: the size of the classifiers to test local interpretability.\n
                         4- time: the training-prediction time in addition to the time of explanation components.\n
-                        5- cf_dist: the L1 distance reduction of counterfactuals of E-IPS-KNN over IPS-KNN.\n
-                        6- cf_size: the size reduction of counterfactual explanations of E-IPS-KNN over IPS-KNN.\n
                         ''')
     
     args = parser.parse_args()
