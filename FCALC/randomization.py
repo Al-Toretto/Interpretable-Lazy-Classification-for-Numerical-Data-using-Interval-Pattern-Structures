@@ -78,5 +78,5 @@ result = pd.DataFrame([[round(accuracy_score(y_test, pat_cls.predictions),4), ro
 #                     index=pd.MultiIndex.from_product([n_iters, s_size], names=["Number of iterations","Subsample size"]))
 # result[["Accuracy", "F1 score", "Unclassified"]] = result[["Accuracy", "F1 score", "Unclassified"]].round(4)
 # result["time (sec.)"] = result["time (sec.)"].round(2)
-result.to_csv(f"results-randomized/{args.dataset}-{args.method}-res.csv", index=False)
+result.to_csv(f"all-results/results-randomized/{args.dataset}-{args.method}-res.csv", index=False)
 #               index_label=["Number of iterations","Subsample size"])

@@ -136,4 +136,4 @@ for m in methods:
 result=pd.DataFrame(result, index=methods,columns=["Accuracy", "F1 score", 
                                                    "Unclassified", "time (sec.)"])
 
-result.to_csv(f'results/{args.dataset}-prox-res.csv')
+result.to_csv(f'all-results/results/{args.dataset}-prox-res.csv')
