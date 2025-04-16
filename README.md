@@ -7,7 +7,7 @@ This paper evaluates interpretable lazy classification methods based on Interval
 
 
 ## Usage Instructions
-The instructions for FCALC and its randomized version can be seen in  [FCALC/README.md](). 
+The instructions for FCALC and its randomized version can be seen in  [FCALC/README.md](FCALC/README.md). 
 
 The instruction for all other classifiers are here.
 
