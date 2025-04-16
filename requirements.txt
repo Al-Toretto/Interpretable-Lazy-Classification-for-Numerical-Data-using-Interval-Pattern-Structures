@@ -36,7 +36,7 @@ pure-eval==0.2.2
 Pygments==2.14.0
 Pyomo==6.7.1
 pyparsing==3.0.9
-PySCIPOpt==5.0.0
+PySCIPOpt==5.0.1
 python-dateutil==2.8.2
 pytz==2022.7.1
 pyzmq==25.0.1
@@ -45,7 +45,6 @@ scikit-learn==1.2.2
 scipy==1.13.0
 seaborn==0.12.2
 six==1.16.0
-sklearn==0.0.post1
 stack-data==0.6.2
 style==1.1.0
 threadpoolctl==3.1.0
